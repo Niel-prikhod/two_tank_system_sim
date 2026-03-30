@@ -30,8 +30,8 @@ set_param([mdl '/Q1'], 'Value', num2str(Q1));
 
 addBlk('simulink/Sources/Step',              'Q2',  [30 300 80 330]);
 set_param([mdl '/Q2'], 'Time',         '500', ...
-                        'InitialValue', num2str(Q2_ss), ...
-                        'FinalValue',   '0.012');   % example step +20%
+                        'Before', num2str(Q2_ss), ...
+                        'After',   '0.012');   % example step +20%
 
 %% ── TANK 1 LOOP ──────────────────────────────────────────────────────────
 addBlk('simulink/Math Operations/Sum',       'Sum1', [160  100 200 140]);
