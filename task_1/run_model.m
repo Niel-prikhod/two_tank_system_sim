@@ -14,6 +14,11 @@ q12_data = simOut.Q12;
 q2_data = simOut.Q;
 close_system(model, 0);
 
+outFolder = fullfile(pwd,'..','docs');
+if ~exist(outFolder,'dir')    
+	mkdir(outFolder);
+end
+
 %plot data
 figure_1 = figure('Visible', 'off');
 plot(t, h2_data.Data, 'b-', 'LineWidth', 1.5); hold on;
@@ -25,7 +30,8 @@ yline(0.816, 'r--', 'Steady state');
 legend({'h_1','h_2'},'Location','best');
 grid on;
 
-exportgraphics(figure_1, 'tank_levels.png', 'Resolution', 300);
+file1 = fullfile(outFolder,'tank_levels.png');
+exportgraphics(figure_1, file1, 'Resolution', 300);
 close(figure_1);
 ylim([0 0.85]);
 
@@ -43,5 +49,6 @@ ax = gca;
 handleax.YAxis.Exponent = 0;                    
 labelax.YAxis.TickLabelFormat = '%0.2e';
 
-exportgraphics(figure_2, 'flows.png', 'Resolution', 300);
+file2 = fullfile(outFolder, 'flows.png');
+exportgraphics(figure_2, file2, 'Resolution', 300);
 close(figure_2);
