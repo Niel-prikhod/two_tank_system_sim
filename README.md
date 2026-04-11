@@ -16,7 +16,7 @@ The system consists of two interconnected tanks with water flowing between them:
 |-----------|-------|------|
 | Water level h₁ | 0.816 | m |
 | Water level h₂ | 0.816 | m |
-| Flow rate Q (inflow) | 0.01 | m³/s |
+| Flow rate Q (outflow) | 0.01 | m³/s |
 | Flow rate Q₁₂ (inter-tank) | 0.01 | m³/s |
 
 ## Files
