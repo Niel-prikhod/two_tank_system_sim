@@ -1,6 +1,40 @@
+close all
+clear
 % Runs nonlinear + SS linear + TF linear for three step sizes.
 % Requires: create_linearized_models.m, ../task_1/TwoTankModel.slx, 
-% .slx, LinearTF.slx
+% LinearSS.slx, LinearTF.slx
+
+if ~bdIsLoaded('TwoTankModel')
+    twoTankPath = fullfile('..','task_1','TwoTankModel.slx');
+    if exist(twoTankPath,'file')
+        load_system(twoTankPath);
+    else
+        error('TwoTankModel.slx not found.');
+    end
+end
+open_system('TwoTankModel');
+
+% Open LinearSS if not already open
+if ~bdIsLoaded('LinearSS')
+    fileFound = which('LinearSS.slx');
+    if ~isempty(fileFound)
+        load_system(fileFound);
+    else
+        warning('LinearSS model file not found.');
+    end
+end
+open_system('LinearSS');
+
+% Open LinearTF if not already open
+if ~bdIsLoaded('LinearTF')
+    fileFound = which('LinearTF.slx');
+    if ~isempty(fileFound)
+        load_system(fileFound);
+    else
+        warning('LinearTF model file not found.');
+    end
+end
+open_system('LinearTF');
 
 run('params.m');
 
@@ -24,18 +58,18 @@ for i = 1:3
     % Override Q step in TwoTankModel (Step block named 'Qin')
     set_param('TwoTankModel/Qin', ...
         'Time',         num2str(T_step), ...
-        'InitialValue', num2str(Q_ss), ...
-        'FinalValue',   num2str(Q_new));
+        'Before', num2str(Q_ss), ...
+        'After',   num2str(Q_new));
     set_param('TwoTankModel', 'StopTime', num2str(T_stop));
 
     out_nl = sim('TwoTankModel');
     t_nl   = out_nl.tout;
-    h2_nl  = out_nl.h2_out;            % absolute h2 from nonlinear model
+    h2_nl  = out_nl.h2;            % absolute h2 from nonlinear model
 
     %% ── 2. State-space linear model ──────────────────────────────────────
     set_param('LinearSS/DeltaQ', ...
         'Time',       num2str(T_step), ...
-        'FinalValue', num2str(dQ));     % deviation input
+        'After', num2str(dQ));     % deviation input
     set_param('LinearSS', 'StopTime', num2str(T_stop));
 
     out_ss  = sim('LinearSS');
@@ -46,7 +80,7 @@ for i = 1:3
     %% ── 3. Transfer-function linear model ───────────────────────────────
     set_param('LinearTF/DeltaQ', ...
         'Time',       num2str(T_step), ...
-        'FinalValue', num2str(dQ));
+        'After', num2str(dQ));
     set_param('LinearTF', 'StopTime', num2str(T_stop));
 
     out_tf  = sim('LinearTF');
@@ -58,7 +92,7 @@ for i = 1:3
     subplot(1,3,i);
     hold on; grid on; box on;
 
-    plot(t_nl/60, h2_nl,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
+    plot(t_nl/60, h2_nl.Data,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
          'DisplayName', 'Nonlinear');
     plot(t_ss/60, h2_ss_abs, '--', 'Color', colors_ss{i}, 'LineWidth', 1.8, ...
          'DisplayName', 'Linear SS');
