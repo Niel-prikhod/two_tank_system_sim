@@ -37,7 +37,7 @@ ylim([0 0.85]);
 
 figure_2 = figure('Visible', 'off');
 plot(t, q12_data.Data, 'm-', 'LineWidth', 1.5); hold on;
-plot(t, q2_data.Data, 'c-', 'LineWidth', 1.5); 
+plot(t, q2_data.Data, 'c-', 'LineWidth', 1.5); xmax
 xlabel('Time (s)');
 ylabel('Flow rate (m^3/s)');
 title('Water level in both tanks');
