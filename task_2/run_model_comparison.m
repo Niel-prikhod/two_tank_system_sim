@@ -50,6 +50,10 @@ T_step  =  1e4;   % step happens at t=200s
 
 figure_1 = figure('Name','Two-Tank Step Comparison','Position',[100 100 1100 750]);
 
+% Prepare figures for h1 and Q_out
+figure_h1 = figure('Name','Two-Tank h_1 Comparison','Position',[120 120 900 600]);
+figure_Q  = figure('Name','Two-Tank Q_{out} Comparison','Position',[140 140 900 600]);
+
 for i = 1:3
     dQ = step_fractions(i) * Q_ss;     % absolute step size in m³/s
     Q_new = Q_ss + dQ;
@@ -67,6 +71,8 @@ for i = 1:3
     out_nl = sim('TwoTankModel');
     t_nl   = out_nl.tout;
     h2_nl  = out_nl.h2;            % absolute h2 from nonlinear model
+    h1_nl  = out_nl.h1;            % absolute h1 from nonlinear model
+    Qout_nl = out_nl.Q;        % Q_out (assumes logged as Qout)
 
     %% ── 2. State-space linear model ──────────────────────────────────────
     set_param('LinearSS/DeltaQ', ...
@@ -77,9 +83,13 @@ for i = 1:3
 
     out_ss  = sim('LinearSS');
     t_ss    = out_ss.tout;
-    h2_ss_d = out_ss.ss_out;          
+    h2_ss_d = out_ss.h2_out;          
     h2_ss_abs = h2_ss_d + h_ss;        % convert back to absolute
-
+    h1_ss_d = out_ss.h1_out;            % assumes linear SS logs delta h1 as ss_h1
+    h1_ss_abs = h1_ss_d + h_ss;
+    
+    Qout_ss = Q_ss + k * h2_ss_d;
+    
     %% ── 3. Transfer-function linear model ───────────────────────────────
     set_param('LinearTF/DeltaQ', ...
         'Time',       num2str(T_step), ...
@@ -89,18 +99,24 @@ for i = 1:3
 
     out_tf  = sim('LinearTF');
     t_tf    = out_tf.tout;
-    h2_tf_d = out_tf.tf_out;
+    h2_tf_d = out_tf.h2_out;
     h2_tf_abs = h2_tf_d + h_ss;
+    h1_tf_d = out_tf.h1_out;            % assumes TF logs delta h1 as tf_h1
+    h1_tf_abs = h1_tf_d + h_ss;
+    
+    Qout_tf = Q_ss + k * h2_tf_d;
+
 
     %% ── Plot h2 response ─────────────────────────────────────────────────
+    figure(figure_1);
     subplot(1,3,i);
     hold on; grid on; box on;
 
-    plot(t_nl/1, h2_nl.Data,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
+    plot(t_nl, h2_nl.Data,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
          'DisplayName', 'Nonlinear');
-    plot(t_ss/1, h2_ss_abs, '--', 'Color', colors_ss{i}, 'LineWidth', 1.8, ...
+    plot(t_ss, h2_ss_abs, '--', 'Color', colors_ss{i}, 'LineWidth', 1.8, ...
          'DisplayName', 'Linear SS');
-    plot(t_tf/1, h2_tf_abs, ':',  'Color', colors_tf{i}, 'LineWidth', 1.8, ...
+    plot(t_tf, h2_tf_abs, ':',  'Color', colors_tf{i}, 'LineWidth', 1.8, ...
          'DisplayName', 'Linear TF');
 
     xlabel('Time (s)');
@@ -109,12 +125,69 @@ for i = 1:3
     legend('Location','southeast','FontSize',8);
 
     xlim([0, T_stop]);              % x in seconds
-
-    % Set y-limits per subplot: first 0-1, second 0-1.5, third 0-2
-
     ylim([0, 2]);
+    yticks(0:0.5:2);
+    xticks(linspace(0, T_stop, 6));
 
-    yticks(0:0.5:2);                % ticks every 0.1
+    %% ── Plot h1 response on its own figure ───────────────────────────────
+    figure(figure_h1);
+    subplot(1,3,i);
+    hold on; grid on; box on;
+
+    % Nonlinear h1: may be timeseries or numeric
+    if isstruct(h1_nl) || isa(h1_nl,'timeseries')
+        h1_nl_data = h1_nl.Data;
+    else
+        h1_nl_data = h1_nl;
+    end
+
+    plot(t_nl, h1_nl_data,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
+         'DisplayName', 'Nonlinear');
+    plot(t_ss, h1_ss_abs, '--', 'Color', colors_ss{i}, 'LineWidth', 1.8, ...
+         'DisplayName', 'Linear SS');
+    plot(t_tf, h1_tf_abs, ':',  'Color', colors_tf{i}, 'LineWidth', 1.8, ...
+         'DisplayName', 'Linear TF');
+
+    xlabel('Time (s)');
+    ylabel('h_1 (m)');
+    title(sprintf('Step %s  (\\DeltaQ = %.4f m^3/s)', step_labels{i}, dQ));
+    legend('Location','southeast','FontSize',8);
+
+    xlim([0, T_stop]);
+    ylim([0, 2]);
+    yticks(0:0.5:2);
+    xticks(linspace(0, T_stop, 6));
+
+    %% ── Plot Q_out response on its own figure ────────────────────────────
+    figure(figure_Q);
+    subplot(1,3,i);
+    hold on; grid on; box on;
+
+    % Nonlinear Qout: may be timeseries or numeric
+    if isstruct(Qout_nl) || isa(Qout_nl,'timeseries')
+        Qout_nl_data = Qout_nl.Data;
+    else
+        Qout_nl_data = Qout_nl;
+    end
+
+    plot(t_nl, Qout_nl_data,     '-',  'Color', colors_nl{i}, 'LineWidth', 2.0, ...
+         'DisplayName', 'Nonlinear');
+    plot(t_ss, Qout_ss_abs, '--', 'Color', colors_ss{i}, 'LineWidth', 1.8, ...
+         'DisplayName', 'Linear SS');
+    plot(t_tf, Qout_tf_abs, ':',  'Color', colors_tf{i}, 'LineWidth', 1.8, ...
+         'DisplayName', 'Linear TF');
+
+    xlabel('Time (s)');
+    ylabel('Q_{out} (m^3/s)');
+    title(sprintf('Step %s  (\\DeltaQ = %.4f m^3/s)', step_labels{i}, dQ));
+    legend('Location','southeast','FontSize',8);
+
+    xlim([0, T_stop]);
+    % autoscale Q axis a bit around steady-state
+    qmin = min([min(Qout_nl_data), min(Qout_ss_abs), min(Qout_tf_abs)]);
+    qmax = max([max(Qout_nl_data), max(Qout_ss_abs), max(Qout_tf_abs)]);
+    margin = 0.1*(qmax-qmin + eps);
+    ylim([qmin-margin, qmax+margin]);
     xticks(linspace(0, T_stop, 6));
 end
 
