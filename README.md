@@ -13,20 +13,28 @@ two_tank_system_sim/
 │   ├── build_ss_model.m
 │   ├── build_tf_model.m
 │   └── run_model_comparison.m
+├── task_3/
+│   ├── model_w_valves.slx
+│   ├── build_model_w_valves.m
+│   ├── run_valve_test.m
+│   ├── set_mfunction_block.m
+│   └── two_tank_ode.m
 └── docs/
     ├── subject_predictive_control.pdf
     ├── task_1/
     │   ├── tank_levels.png
     │   └── flows.png
-    └── task_2/
-        └── task_2_comp.png
+    ├── task_2/
+    │   └── task_2_comp.png
+    └── task_3/
+        └── valve_function.png
 ```
 
 ---
 
 ## Overview
 
-This MATLAB/Simulink project simulates a two-tank water system for a **Predictive Control** semestral project. The system consists of two cylindrical tanks connected in series, where the goal is to learn system modelling, simulation, compare MCP and cascade PI control.
+This MATLAB/Simulink project simulates a two-tank water system for a **Predictive Control** semestral project. The system consists of two cylindrical tanks connected in series, where the goal is to learn system modelling, simulation, compare MPC and cascade PI control.
 
 ---
 
@@ -164,9 +172,83 @@ The plot shows the response of $h_2$ for all three step sizes (+10%, +30%, +50%)
 
 ---
 
+## Task 3: Control Valves with First-Order Dynamics
+
+### Objective
+
+Extend the nonlinear two-tank model from Task 1 by adding two control valves — one on the outlet of Tank 1 (controlling $Q_{12}$) and one on the outlet of Tank 2 (controlling $Q_{out}$).
+
+### Mathematical Model
+
+#### Valve Flow Equation
+
+The fixed orifice flow equation from Task 1:
+
+$Q = a \cdot \sqrt{2g \cdot h}$
+
+was replaced by a controllable valve flow equation:
+
+$Q = K_v \cdot z \cdot \sqrt{2g \cdot h}$
+
+Where:
+- $z \in [0,1]$ is the valve opening position ($0$ = fully closed, $1$ = fully open)
+- $K_v$ is the valve flow factor $[m^2]$
+
+#### Valve Dynamics
+
+Each valve has first-order dynamics modelling the physical lag of the valve actuator. The commanded position $z_{cmd}$ does not take effect instantly — the actual position $z$ responds as:
+
+$\tau_v \cdot \frac{dz}{dt} = z_{cmd} - z$
+
+Which in transfer function form is:
+
+$\frac{Z(s)}{Z_{cmd}(s)} = \frac{1}{\tau_v \cdot s + 1}$
+
+In Simulink, this is implemented as a State-Space block with:
+- $A = -1/\tau_v$
+- $B = 1/\tau_v$
+- $C = 1$, $D = 0$
+
+Followed by a Saturation block clamping $z$ to $[0, 1]$.
+
+### Constants
+
+| Parameter | Value | Unit | Justification |
+|-----------|-------|------|---------------|
+| $K_v$ | 0.005 | $[m^2]$ | Chosen so nominal operating point ($h_{1ss} = h_{2ss} = 0.816 \, [m]$, $Q_{ss} = 0.01 \, [m^3/s]$) is maintained at $z_{ss} = 0.5$. Derived from: $K_v = Q_{ss} / (z_{ss} \cdot \sqrt{2 \cdot g \cdot h_{ss}}) = 0.01 / (0.5 \cdot 4.0) = 0.005 \, [m^2]$ |
+| $\tau_v$ | 10 | $[s]$ | Chosen to be realistic for an industrial control valve while remaining fast relative to the tank time constant ($\tau_{tank} \approx 652 \, [s]$). The valve fully settles in approximately $3\tau_v = 30 \, [s]$, which is less than 5% of the dominant system time constant. |
+| $z_{ss}$ | 0.5 | $[-]$ | Nominal steady-state opening for both valves. Symmetric choice ensures equal headroom for opening and closing. |
+
+### Implementation
+
+- **Simulink Model**: `task_3/model_w_valves.slx`
+- **Build Script**: `task_3/build_model_w_valves.m`
+- **Run Script**: `task_3/run_valve_test.m`
+
+### Test Description
+
+Both valves start at $z_{ss} = 0.5$ and the system starts at the steady-state operating point. At $t = 500 \, [s]$, both valves receive a simultaneous step command:
+- **Valve 1** ($z_1$): opens from 0.5 to 0.8 — increases $Q_{12}$
+- **Valve 2** ($z_2$): closes from 0.5 to 0.3 — reduces $Q_{out}$
+
+The actual valve positions lag behind the step commands due to the first-order dynamics with $\tau_v = 10 \, [s]$.
+
+### Results
+
+$h_1$ decreases after $t = 500 \, [s]$ because Valve 1 opens and drains Tank 1 faster than $Q_{in}$ replenishes it.
+
+$h_2$ initially rises because Valve 1 increases inflow to Tank 2 while Valve 2 simultaneously restricts outflow. After the transient, $h_2$ settles at a new higher steady state.
+
+The valve position plots show the first-order lag — actual $z$ tracks $z_{cmd}$ with a smooth exponential approach rather than an instantaneous jump.
+
+The saturation block has no visible effect in this test since neither valve command exceeds $[0, 1]$, but it protects the model during edge-case inputs.
+
+![Valve Test Results](docs/task_3/valve_function.png "Tank levels and valve positions over time")
+
+---
+
 ## Next Steps (Future Tasks)
 
-- Valves
 - Cascade PI regulation
 - MPC regulation
 - Noise imitation on input
