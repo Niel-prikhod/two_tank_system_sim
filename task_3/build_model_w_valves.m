@@ -1,5 +1,3 @@
-%% create_model.m — complete working script
-
 run('../task_2/params.m');   % loads A, a, g, h_ss, Q_ss, k
 
 tau_v = 10;        % s  — valve time constant
@@ -28,9 +26,9 @@ add_block('simulink/Sinks/To Workspace', [mdl '/Log_h1'], 'Position', [460  80 5
 add_block('simulink/Sinks/To Workspace', [mdl '/Log_h2'], 'Position', [460 200 540 220]);
 
 % Parameters
-set_param([mdl '/Q1'],  'Value',              num2str(Q1));
-set_param([mdl '/h1'],  'InitialCondition',   num2str(h1_0));
-set_param([mdl '/h2'],  'InitialCondition',   num2str(h2_0));
+set_param([mdl '/Q1'],  'Value',              num2str(Q_ss));
+set_param([mdl '/h1'],  'InitialCondition',   num2str(h_ss));
+set_param([mdl '/h2'],  'InitialCondition',   num2str(h_ss));
 
 set_param([mdl '/Log_h1'], 'VariableName', 'h1_out', 'SaveFormat', 'Array');
 set_param([mdl '/Log_h2'], 'VariableName', 'h2_out', 'SaveFormat', 'Array');
