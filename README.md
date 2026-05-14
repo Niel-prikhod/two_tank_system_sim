@@ -19,6 +19,10 @@ two_tank_system_sim/
 │   ├── run_valve_test.m
 │   ├── set_mfunction_block.m
 │   └── two_tank_ode.m
+├── task_4/
+│   ├── model_w_cascade.slx
+│   ├── add_cascade.m
+│   └── run_cascade.m
 └── docs/
     ├── subject_predictive_control.pdf
     ├── task_1/
@@ -26,8 +30,10 @@ two_tank_system_sim/
     │   └── flows.png
     ├── task_2/
     │   └── task_2_comp.png
-    └── task_3/
-        └── valve_function.png
+    ├── task_3/
+    │   └── valve_function.png
+    └── task_4/
+        └── cascade_pid.png
 ```
 
 ---
@@ -247,9 +253,104 @@ The saturation block has no visible effect in this test since neither valve comm
 
 ---
 
+## Task 4: Cascade PI Control
+
+### Objective
+
+Implement cascade proportional-integral (PI) control for both tanks. Each tank has two PI regulators in series: a master loop controlling tank level and a slave loop controlling the outlet flow from that tank.
+
+### Physical Principle
+
+A cascade controller improves response by using a slower outer (master) loop to set the setpoint of a faster inner (slave) loop. The slave loop has direct access to the manipulated variable (valve position) and can respond quickly to disturbances. The master loop only cares about the tank level and does not worry about the dynamics of valve actuation.
+
+For each tank:
+- **Master**: measures level $h$, compares to reference $h_{ref}$, outputs desired flow $Q_{ref}$
+- **Slave**: measures actual outlet flow $Q_{meas}$, compares to $Q_{ref}$, outputs valve $z_{cmd}$
+
+Both loops use PI control (proportional + integral, no derivative).
+
+### Mathematical Model
+
+#### Master Loop Plant (for tuning)
+
+From desired outlet flow to tank level. Linearised:
+
+$\frac{dh}{dt} = \frac{Q_{in} - Q_{ref}}{A}$
+
+In Laplace form: $H(s) = \frac{1}{A \cdot s}$ — an integrator.
+
+With slave closed, the effective plant includes the slave closed-loop response.
+
+#### Slave Loop Plant (for tuning)
+
+From valve command $z_{cmd}$ to measured outlet flow. Linearised:
+
+- Valve dynamics: $\frac{dz}{dt} = \frac{z_{cmd} - z}{\tau_v}$ → $Z(s) = \frac{1}{\tau_v \cdot s + 1}$
+- Flow: $Q = K_v \cdot z \cdot \sqrt{2gh}$ linearised at operating point → $Q \approx K_{v,lin} \cdot z$
+- Combined: $\frac{Q(s)}{Z_{cmd}(s)} = \frac{K_{v,lin}}{\tau_v \cdot s + 1}$
+
+Where $K_{v,lin} = K_v \cdot \sqrt{2gh_{ss}} = 0.005 \cdot \sqrt{19.62 \cdot 0.816} \approx 0.020 \, [m^3/s]$.
+
+### Autotuning using pidtune
+
+MATLAB's Control System Toolbox function `pidtune()` automatically computes PI gains for each plant:
+
+1. **Slave tuning**: `pidtune(G_slave, 'PI')` → $K_{p,slave}$, $K_{i,slave}$
+   - Plant is first-order, well-behaved, tuning is aggressive.
+
+2. **Master tuning**: `pidtune(G_master_with_slave, 'PI')` → $K_{p,master}$, $K_{i,master}$
+   - Plant includes closed-loop slave; master is inherently slower due to tank inertia.
+
+The `pidtune` function selects gains to balance speed (bandwidth) and robustness. No manual gain scheduling or trial-and-error needed.
+
+### Initial Conditions
+
+Initial conditions were set in each PI block to the value that produces the required steady-state output when error is zero:
+
+$IC_{master} = \frac{Q_{ss}}{K_{i,master}}$
+
+$IC_{slave} = \frac{z_{ss}}{K_{i,slave}}$
+
+Howeverm, initial conditions were not used because $K_{i,master}$ was small (0.0045), which would require unrealistic values (around 15, when max flow is set to 0.02). As a result, small spikes persist at the start of simulation.
+
+### Test Scenario
+
+At $t = 500 \, [s]$, the reference level $h_{ref}$ steps from $h_{ss} = 0.816 \, [m]$ to $1.2 \cdot h_{ss} \approx 0.979 \, [m]$ (+20% step in both tanks simultaneously). The same reference is used for both tanks.
+
+The cascade controller responds:
+- Master loop 1 detects $h_1 < h_{ref}$ → decreases $Q_{12,ref}$ (reduces outflow from tank 1)
+- Slave loop 1 adjusts $z_1$ to track $Q_{12,ref}$ → valve opens more as needed
+- Tank 1 level rises toward the reference
+- Similarly for tank 2 with $Q_{out}$ and $z_2$
+
+The slave loops are fast ($\tau_v = 10 \, [s]$, PI tuned for ~1 second response), so they track their flow setpoints within 10-30 seconds. The master loops are slower (tank time constant ~650 s), so the level reaches the new reference over several minutes.
+
+### Results
+
+After the reference step at $t = 500 \, [s]$:
+
+- Both $h_1$ and $h_2$ begin rising toward $h_{ref}$ immediately (slave loop acts fast)
+- $h_1$ and $h_2$ track closely to each other throughout (cascade ensures coordinated response)
+- There is no overshoot or oscillation (PI tuning is smooth)
+- Steady-state error is zero (integral action in master loop)
+- Both tanks settle at the new reference level within ~30-50 minutes
+- The actual level curves are smooth S-shaped (second-order response from cascade)
+
+![Cascade Control Results](docs/task_4/cascade_pid.png "Cascade PI control: h1 and h2 tracking h_ref")
+
+The plot shows $h_{ref}$ as a dashed line and $h_1$, $h_2$ as solid lines. The reference step is marked with a vertical dotted line. Since both tanks are identical and use identical controllers, $h_1$ and $h_2$ follow nearly identical trajectories and track $h_{ref}$ with the same dynamics.
+
+### Simulation Data Logged
+
+- $h_1$, $h_2$: tank levels (from integrators)
+- $h_{ref}$: reference level (same for both tanks)
+- $z_1$, $z_2$: actual valve positions (after saturation, with first-order lag)
+- $Q_{meas,1}$, $Q_{meas,2}$: measured outlet flows (computed from $h$ and $z$)
+
+---
+
 ## Next Steps (Future Tasks)
 
-- Cascade PI regulation
 - MPC regulation
 - Noise imitation on input
 - MPC and cascade PI final comparison
