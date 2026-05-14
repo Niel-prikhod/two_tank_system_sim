@@ -1,0 +1,238 @@
+run('../task_2/params.m');   % loads A, a, g, h_ss, Q_ss, k
+
+tau_v = 10;
+z_ss  = 0.5;
+Kv    = Q_ss / (z_ss * sqrt(2 * g * h_ss));   % = 0.005 m²
+
+%% Build model
+mdl = 'mpc_model';
+if bdIsLoaded(mdl), close_system(mdl, 0); end
+new_system(mdl); open_system(mdl);
+
+% Blocks
+add_block('simulink/Sources/Constant',        [mdl '/Q1'],  'Position', [30  140 80  160]);
+add_block('simulink/User-Defined Functions/MATLAB Function', ...
+	[mdl '/ODE'], 'Position', [160 120 280 180]);
+wrapperCode = [...
+	'function [dh1, dh2] = step(Q_in, h1, h2, z1, z2)'  newline ...
+	'    [dh1, dh2] = two_tank_ode(h1, h2, Q_in, z1, z2);' newline ...
+	'end'];
+
+addpath('../task_3');
+set_mfunction_block(mdl, 'ODE', wrapperCode);
+
+add_block('simulink/Continuous/Integrator',   [mdl '/h1'],  'Position', [340 100 390 140]);
+add_block('simulink/Continuous/Integrator',   [mdl '/h2'],  'Position', [340 160 390 200]);
+add_block('simulink/Sinks/To Workspace', [mdl '/Log_h1'], 'Position', [460  80 540 100]);
+add_block('simulink/Sinks/To Workspace', [mdl '/Log_h2'], 'Position', [460 200 540 220]);
+
+% Parameters
+set_param([mdl '/Q1'],  'Value',              num2str(Q_ss));
+set_param([mdl '/h1'],  'InitialCondition',   num2str(h_ss));
+set_param([mdl '/h2'],  'InitialCondition',   num2str(h_ss));
+
+set_param([mdl '/Log_h1'], 'VariableName', 'h1_out', 'SaveFormat', 'Array');
+set_param([mdl '/Log_h2'], 'VariableName', 'h2_out', 'SaveFormat', 'Array');
+
+% Connect h1 and h2 outputs to their respective loggers
+
+
+% Model settings
+set_param(mdl, 'StopTime', '3000', 'Solver', 'ode45');
+
+% Connections
+add_line(mdl, 'Q1/1',  'ODE/1', 'autorouting','on');
+add_line(mdl, 'h1/1',  'ODE/2', 'autorouting','on');
+add_line(mdl, 'h2/1',  'ODE/3', 'autorouting','on');
+add_line(mdl, 'ODE/1', 'h1/1',  'autorouting','on');
+add_line(mdl, 'ODE/2', 'h2/1',  'autorouting','on');
+add_line(mdl, 'h1/1', 'Log_h1/1', 'autorouting','on');
+add_line(mdl, 'h2/1', 'Log_h2/1', 'autorouting','on');
+
+%% ── VALVE 1 subsystem (controls Q12) ────────────────────────────────────
+
+add_block('simulink/Continuous/State-Space', [mdl '/Valve1']);
+set_param([mdl '/Valve1'], ...
+'A',  num2str(-1/tau_v), ...     % -0.1
+'B',  num2str(1/tau_v),  ...     %  0.1
+'C',  '1', ...
+'D',  '0', ...
+'X0', num2str(z_ss));            %  0.5  — initial valve position
+
+% Saturation — clamp actual position to [0, 1]
+add_block('simulink/Discontinuities/Saturation', [mdl '/Sat1'], ...
+'Position', [260 215 310 255]);
+set_param([mdl '/Sat1'], 'UpperLimit', '1', 'LowerLimit', '0');
+
+add_line(mdl, 'Valve1/1', 'Sat1/1',   'autorouting', 'on');
+
+%% ── VALVE 2 subsystem (controls Q_out) ──────────────────────────────────
+add_block('simulink/Continuous/State-Space', [mdl '/Valve2']);
+set_param([mdl '/Valve2'], ...
+'A',  num2str(-1/tau_v), ...     % -0.1
+'B',  num2str(1/tau_v),  ...     %  0.1
+'C',  '1', ...
+'D',  '0', ...
+'X0', num2str(z_ss));            %  0.5  — initial valve position
+
+add_block('simulink/Discontinuities/Saturation', [mdl '/Sat2'], ...
+'Position', [260 295 310 335]);
+set_param([mdl '/Sat2'], 'UpperLimit', '1', 'LowerLimit', '0');
+
+add_line(mdl, 'Valve2/1', 'Sat2/1',   'autorouting', 'on');
+
+%% ── Connect valve outputs to ODE block ───────────────────────────────────
+% The MATLAB Function block (ODE) now has 5 inputs:
+%   1: Q_in,  2: h1,  3: h2,  4: z1,  5: z2
+% Ports 4 and 5 are new — connect saturation outputs to them
+add_line(mdl, 'Sat1/1', 'ODE/4', 'autorouting', 'on');
+add_line(mdl, 'Sat2/1', 'ODE/5', 'autorouting', 'on');
+
+%% ── Log valve positions ──────────────────────────────────────────────────
+add_block('simulink/Sinks/To Workspace', [mdl '/Log_z1'], ...
+'Position', [380 215 460 245]);
+add_block('simulink/Sinks/To Workspace', [mdl '/Log_z2'], ...
+'Position', [380 295 460 325]);
+
+set_param([mdl '/Log_z1'], 'VariableName', 'z1_out', 'SaveFormat', 'Array');
+set_param([mdl '/Log_z2'], 'VariableName', 'z2_out', 'SaveFormat', 'Array');
+
+add_line(mdl, 'Sat1/1', 'Log_z1/1', 'autorouting', 'on');
+add_line(mdl, 'Sat2/1', 'Log_z2/1', 'autorouting', 'on');
+
+set_param(mdl, 'StopTime', '3000', 'Solver', 'ode45');
+
+% Autotune PI gains
+
+Kv_lin  = Kv * sqrt(2 * g * h_ss);          % linearised gain ~0.02 m³/s
+G_slave = tf(Kv_lin, [tau_v, 1]);            % 0.02 / (10s + 1)
+C_slave = pidtune(G_slave, 'PI');
+CL_slave  = feedback(C_slave * G_slave, 1);
+Kp_s = C_slave.Kp;    Ki_s = C_slave.Ki;
+
+add_block('simulink/Sources/Step', [mdl '/h_ref']);
+set_param([mdl '/h_ref'], ...
+'Time',         '500',          ...   % step at t=500s
+'Before', num2str(h_ss),  ...   % start at SS
+'After',   num2str(1.2 * h_ss)); % +20% reference step
+
+add_block('simulink/Sinks/To Workspace', [mdl '/Log_href']);
+set_param([mdl '/Log_href'], 'VariableName', 'href_out', 'SaveFormat', 'Array');
+add_line(mdl, 'h_ref/1', 'Log_href/1', 'autorouting', 'on');
+
+
+% Implemented as MATLAB Function block — two inputs (h, z), one output (Q)
+flowCode = strjoin({
+'function Q = measure_flow(h, z)'
+'    Kv_v = 0.005;'
+'    g_v  = 9.81;'
+'    Q = Kv_v * z * sqrt(2 * g_v * max(h, 0));'
+'end'
+}, newline);
+
+add_block('simulink/User-Defined Functions/MATLAB Function', [mdl '/FlowMeas1']);
+add_block('simulink/User-Defined Functions/MATLAB Function', [mdl '/FlowMeas2']);
+
+set_mfunction_block(mdl, 'FlowMeas1', flowCode);
+set_mfunction_block(mdl, 'FlowMeas2', flowCode);
+
+% Inputs: h from integrator, z from saturation output (actual valve position)
+add_line(mdl, 'h1/1',   'FlowMeas1/1', 'autorouting', 'on');
+add_line(mdl, 'Sat1/1', 'FlowMeas1/2', 'autorouting', 'on');
+
+add_line(mdl, 'h2/1',   'FlowMeas2/1', 'autorouting', 'on');
+add_line(mdl, 'Sat2/1', 'FlowMeas2/2', 'autorouting', 'on');
+
+
+% Error convention: e_slave = Q12_ref - Q12_meas
+% Cascade loop 1 (Tank 1: controls h1 via z1)
+add_block('simulink/Math Operations/Sum', [mdl '/SlaveErr1']);
+set_param([mdl '/SlaveErr1'], 'Inputs', '+-');
+add_block('simulink/Continuous/PID Controller', [mdl '/SlavePI1']);
+set_param([mdl '/SlavePI1'],                                 ...
+'Controller',                   'PI',                    ...
+'P',                            num2str(Kp_s),           ...
+'I',                            num2str(Ki_s),           ...
+'AntiWindupMode',               'clamping',              ...
+'InitialConditionForIntegrator',num2str(z_ss / Ki_s),    ...
+'LimitOutput',                  'on',                    ...
+'UpperSaturationLimit',         '1',                     ...  % max valve position
+'LowerSaturationLimit',         '0');
+add_line(mdl, 'FlowMeas1/1', 'SlaveErr1/2',  'autorouting', 'on'); % Q12_meas→ -
+add_line(mdl, 'SlaveErr1/1', 'SlavePI1/1',   'autorouting', 'on'); % error   → slave PI
+add_line(mdl, 'SlavePI1/1',  'Valve1/1',     'autorouting', 'on'); % z1_cmd  → valve
+
+% Cascade loop 2
+add_block('simulink/Math Operations/Sum', [mdl '/SlaveErr2']);
+set_param([mdl '/SlaveErr2'], 'Inputs', '+-');
+add_block('simulink/Continuous/PID Controller', [mdl '/SlavePI2']);
+set_param([mdl '/SlavePI2'],                             ...
+'Controller',                   'PI',                    ...
+'P',                            num2str(Kp_s),           ...
+'I',                            num2str(Ki_s),           ...
+'AntiWindupMode',               'clamping',              ...
+'InitialConditionForIntegrator',num2str(z_ss / Ki_s),    ...
+'LimitOutput',                  'on',                    ...
+'UpperSaturationLimit',         '1',                     ...
+'LowerSaturationLimit',         '0');
+add_line(mdl, 'FlowMeas2/1', 'SlaveErr2/2',  'autorouting', 'on');
+add_line(mdl, 'SlaveErr2/1', 'SlavePI2/1',   'autorouting', 'on');
+add_line(mdl, 'SlavePI2/1',  'Valve2/1',     'autorouting', 'on');
+
+
+% Add MPC
+Kv_lin = Kv * sqrt(2 * g * h_ss);   % max slave flow ~0.02 m³/s
+A_p = zeros(2);
+B_p = [-1/A,  0,    1/A ;   % columns: Q12_ref, Qout_ref, Q_in
+        1/A, -1/A,  0   ];
+C_p = eye(2);
+D_p = zeros(2, 3);
+plant_c = ss(A_p, B_p, C_p, D_p);
+plant_c = setmpcsignals(plant_c, 'MV', [1 2], 'MD', 3);
+
+Ts_mpc  = 30;
+plant_d = c2d(plant_c, Ts_mpc, 'zoh');
+p = 20;   % prediction horizon: 20 × 30 s = 600 s ≈ 1 tank time constant
+m = 3;    % control horizon: 3 free moves per window
+mpcobj = mpc(plant_d, Ts_mpc, p, m);
+mpcobj.Weights.OutputVariables          = [10,   10  ];  % h1, h2 tracking
+mpcobj.Weights.ManipulatedVariables     = [0.01, 0.01];  % allow MVs to move freely
+mpcobj.Weights.ManipulatedVariablesRate = [0.1,  0.1 ];  % penalise large MV jumps
+mpcobj.MV(1).Min = 0;   mpcobj.MV(1).Max = Kv_lin;   % Q12_ref  ∈ [0, 0.02]
+mpcobj.MV(2).Min = 0;   mpcobj.MV(2).Max = Kv_lin;   % Qout_ref ∈ [0, 0.02]
+mpcobj.Model.Nominal.X  = [h_ss;  h_ss];
+mpcobj.Model.Nominal.U  = [Q_ss;  Q_ss;  Q_ss];   % [Q12_ref; Qout_ref; Q_in]
+mpcobj.Model.Nominal.Y  = [h_ss;  h_ss];
+mpcobj.Model.Nominal.DX = [0;     0   ];
+% mpcDesigner(mpcobj);
+
+% Add MPC Controller block (mpclib ships with MPC Toolbox)
+add_block('mpclib/MPC Controller', [mdl '/MPC_Master']);
+set_param([mdl '/MPC_Master'], 'MpcObj', 'mpcobj');
+
+% mo port — measured outputs [h1; h2]
+add_block('simulink/Signal Routing/Mux', [mdl '/MeasMux']);
+set_param([mdl '/MeasMux'], 'Inputs', '2');
+add_line(mdl, 'h1/1',      'MeasMux/1',    'autorouting', 'on');
+add_line(mdl, 'h2/1',      'MeasMux/2',    'autorouting', 'on');
+add_line(mdl, 'MeasMux/1', 'MPC_Master/1', 'autorouting', 'on');
+
+% ref port — same h_ref for both tanks, stacked into [h_ref; h_ref]
+add_block('simulink/Signal Routing/Mux', [mdl '/RefMux']);
+set_param([mdl '/RefMux'], 'Inputs', '2');
+add_line(mdl, 'h_ref/1',  'RefMux/1',     'autorouting', 'on');
+add_line(mdl, 'h_ref/1',  'RefMux/2',     'autorouting', 'on');
+add_line(mdl, 'RefMux/1', 'MPC_Master/2', 'autorouting', 'on');
+
+% md port — Q_in as measured disturbance
+add_line(mdl, 'Q1/1', 'MPC_Master/3', 'autorouting', 'on');
+
+% mv output — demux [Q12_ref; Qout_ref] → slave error sums
+add_block('simulink/Signal Routing/Demux', [mdl '/MVDemux']);
+set_param([mdl '/MVDemux'], 'Outputs', '2');
+add_line(mdl, 'MPC_Master/1', 'MVDemux/1',   'autorouting', 'on');
+add_line(mdl, 'MVDemux/1',    'SlaveErr1/1', 'autorouting', 'on');
+add_line(mdl, 'MVDemux/2',    'SlaveErr2/1', 'autorouting', 'on');
+
+save_system(mdl);
+close_system(mdl);
