@@ -20,7 +20,9 @@ set_param([mdl '/h_ref'], ...
 
 set_param(mdl, 'StopTime', num2str(T_stop));
 
+
 %% Run simulation
+set_param(mdl, 'ZeroCrossAlgorithm', 'Adaptive');
 simOut = sim(mdl);
 
 t    = simOut.tout;
