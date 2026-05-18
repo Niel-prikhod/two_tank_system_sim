@@ -2,44 +2,7 @@
 
 ## Project Structure
 
-```
-two_tank_system_sim/
-├── README.md
-├── task_1/
-│   ├── TwoTankModel.slx
-│   └── run_model.m
-├── task_2/
-│   ├── create_linearized_models.m
-│   ├── build_ss_model.m
-│   ├── build_tf_model.m
-│   └── run_model_comparison.m
-├── task_3/
-│   ├── model_w_valves.slx
-│   ├── build_model_w_valves.m
-│   ├── run_valve_test.m
-│   ├── set_mfunction_block.m
-│   └── two_tank_ode.m
-├── task_4/
-│   ├── model_w_cascade.slx
-│   ├── add_cascade.m
-│   └── run_cascade.m
-├── task_5/
-│   ├── mpc_model.slx
-│   ├── create_model_w_mpc.m
-│   └── run_mpc_model.m
-└── docs/
-    ├── subject_predictive_control.pdf
-    ├── task_1/
-    │   ├── tank_levels.png
-    │   └── flows.png
-    ├── task_2/
-    │   └── task_2_comp.png
-    ├── task_3/
-    │   └── valve_function.png
-    └── task_4/
-        └── cascade_pid.png
-```
-
+Scripts to recreate models for each task are located in `task_*/` directory alongside with different helper functions needed for the runtime. Results are located under task subdirectory inside `docs/`.
 ---
 
 ## Overview
@@ -580,3 +543,73 @@ stable operation. The results demonstrate the disturbance rejection capability
 of the centralized MPC controller and its ability to preserve reference
 tracking under noisy operating conditions.
 
+## Task 7: Final MPC and Cascade PID Comparison
+
+### Objective
+
+Compare the behaviour of the two implemented control strategies:
+- cascade PI control from Task 4,
+- centralized MPC with cascade slave PI loops from Task 5,
+
+during simultaneous filling and emptying of both tanks. The comparison is
+performed using simulation experiments with time-varying reference signals
+while also introducing disturbances to the inlet flow $Q_{in}$.
+
+### Implementation
+
+The filling and emptying behaviour is generated using a custom reference signal
+function implemented in MATLAB. The function creates a triangular reference
+trajectory consisting of:
+- a linear rise phase (tank filling),
+- an optional hold phase,
+- and a linear fall phase (tank emptying).
+
+The generated signal starts from the initial value, increases linearly to the
+desired peak level, and then decreases back to the original operating point.
+The simulation uses:
+- sampling time: $30 \, [s]$
+- total simulation time: $10000 \, [s]$
+- rise time: $5000 \, [s]$
+- fall time: $5000 \, [s]$
+
+The reference trajectory for $h_1$ is generated directly by the
+`set_reference()` function. The reference for $h_2$ is obtained by applying an
+offset using the `add_offset()` function so both tanks follow coordinated but
+shifted trajectories.
+
+Both reference signals are loaded into Simulink using `From Workspace` blocks,
+allowing the controllers to track predefined time-varying operating points
+during simulation.
+
+Disturbances on the inlet flow $Q_{in}$ are generated using the random signal
+generator from Task 6, where the inflow oscillates around its steady-state
+value within a specified disturbance range. This allows direct comparison of
+the robustness and tracking performance of the PI cascade controller and the
+MPC-based controller under identical disturbance conditions.
+
+### Results
+input_flow.png  mpc_h1.png  mpc_h2.png  pid_h1.png  pid_h2.png
+
+![Level in Tank 1, PID regulation](docs/task_7/pid_h1.png)
+![Level in Tank 2, PID regulation](docs/task_7/pid_h2.png)
+![Level in Tank 1, MPC regulation](docs/task_7/mpc_h1.png)
+![Level in Tank 2, MPC regulation](docs/task_7/mpc_h2.png)
+
+Both control strategies successfully tracked the filling and emptying
+reference trajectories while maintaining stable operation under inflow
+disturbances. The cascade PI controller handled the task well and achieved
+acceptable reference tracking with stable behaviour throughout the simulation.
+However, the MPC-based controller produced noticeably smoother responses and
+followed the reference trajectory more accurately, especially during the
+dynamic filling and emptying phases.
+
+In previous tasks, the MPC controller used a sampling time of
+$30 \, [s]$, which limited its prediction accuracy and resulted in performance
+comparable to the cascade PI controller. After reducing the MPC sampling time
+to $1 \, [s]$, the controller was able to react significantly faster to both
+reference changes and disturbances. As a result, the MPC output closely
+matches the reference trajectory while maintaining smooth control action and
+minimal oscillations. The comparison demonstrates the importance of sampling
+time selection in predictive control and confirms the superior tracking
+capability of the MPC controller when configured with sufficiently fast
+sampling.
