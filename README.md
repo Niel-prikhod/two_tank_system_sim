@@ -508,8 +508,6 @@ The MPC responds by:
 
 ### Results
 
-### Results
-
 The MPC controller successfully tracks the reference step applied at
 $t = 500 \, [s]$, where both tank levels rise from the steady-state value
 $h_{ss} = 0.816 \, [m]$ to the new reference
@@ -542,8 +540,43 @@ Since the plant and controller are symmetric, both tanks follow nearly identical
 - Slave PI valve commands and actual valve positions
 
 ---
-## Next Steps (Future Tasks)
 
-- Noise imitation on input
-- MPC and cascade PI final comparison
+## Task 6: Input Disturbance Simulation
+
+### Objective
+
+Modify the previously developed MATLAB/Simulink model to simulate disturbance
+behaviour of the inlet flow $Q_{in}$. The disturbance signal should model
+random oscillations of the inflow around its steady-state operating value
+within the range of $\pm 70\%$.
+
+### Implementation
+
+The disturbance generator creates a noisy version
+of the nominal inflow by multiplying the constant steady-state input by a
+random factor:
+
+$Q_{disturbed} = Q_{ss} \cdot (1 + \delta)$
+
+where $\delta$ is a uniformly distributed random variation within the selected
+disturbance percentage range. The random signal is generated using a fixed
+seed (`rng(42)`), ensuring repeatable simulation results. The disturbed input
+is additionally limited between $0$ and $2 \cdot Q_{ss}$ to avoid unrealistic
+negative or excessively large flow values.
+
+### Results
+
+![Input with Randomised Errr](docs/task_6/disturbance_input.png "Disturbance Input")
+
+![Disturbance Input Results](docs/task_6/regulate_disturbance.png "MPC + Cascade Slave PI — level response")
+
+The resulting plot shows that the MPC controller successfully regulates the
+system despite continuous input disturbances. Tank level $h_2$ remains tightly
+controlled around the reference value with only very small deviations, while
+$h_1$ exhibits significantly larger oscillations because it is directly affected
+by the disturbed inflow. The controller continuously adjusts
+$Q_{12,ref}$ and $Q_{out,ref}$ to compensate for the disturbances and maintain
+stable operation. The results demonstrate the disturbance rejection capability
+of the centralized MPC controller and its ability to preserve reference
+tracking under noisy operating conditions.
 
