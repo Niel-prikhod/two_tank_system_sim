@@ -1,13 +1,14 @@
 # Two-Tank Water System Simulation
 
-## Project Structure
-
-Scripts to recreate models for each task are located in `task_*/` directory alongside with different helper functions needed for the runtime. Results are located under task subdirectory inside `docs/`.
----
-
 ## Overview
 
 This MATLAB/Simulink project simulates a two-tank water system for a **Predictive Control** semestral project. The system consists of two cylindrical tanks connected in series, where the goal is to learn system modelling, simulation, compare MPC and cascade PI control.
+
+---
+
+## Project Structure
+
+Scripts to recreate models for each task are located in `task_*/` directory alongside with different helper functions needed for the runtime. Results are located under task subdirectory inside `docs/`.
 
 ---
 
