@@ -1,5 +1,5 @@
 function new = add_offset(reference_signal, time_offset)
-	sample_time = 30;      
+	sample_time = 10;      
 	total_time = 10000;         
 	initial_value = 0;         
 	peak_value = 1.0;          

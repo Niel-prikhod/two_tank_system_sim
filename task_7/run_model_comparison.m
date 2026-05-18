@@ -1,7 +1,7 @@
 function save_level_figure(t, h, href, figName, fileName, outFolder)
 	f = figure('Name', figName, 'Position', [100 100 900 420]);
 	hold on; grid on; box on;
-	plot(t, href, '--', 'LineWidth', 1.5, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'h_{ref}');
+	plot(href(:,1), href(:,2), '--', 'LineWidth', 1.5, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'h_{ref}');
 	plot(t, h,    '-',  'LineWidth', 1.8, 'DisplayName', 'h');
 	xline(500, 'k:', 'LineWidth', 1.0, 'HandleVisibility', 'off');
 	xlabel('Time (s)');
@@ -82,13 +82,12 @@ for ci = 1:numel(controllers)
 		t_sim = results.(ctrl).t;
 		h1 = results.(ctrl).h1;
 		h2 = results.(ctrl).h2;
-		if exist('t','var') && numel(t)==numel(href) && ~isempty(href)
-			href_interp = interp1(t, href, t_sim, 'linear', 'extrap');
-		else
-			href_interp = h_ss * ones(size(t_sim));
-		end
-		save_level_figure(t_sim, h1, href_interp, sprintf('%s - h1', upper(ctrl)), ...
+
+		% h1_ref_interp = interp1(t, h1_ref, t_sim, 'linear', 'extrap');
+		% h2_ref_interp = interp1(t, h2_ref, t_sim, 'linear', 'extrap');
+
+		save_level_figure(t_sim, h1, h1_ref, sprintf('%s - h1', upper(ctrl)), ...
 			sprintf('%s_h1.png', ctrl), outFolder);
-		save_level_figure(t_sim, h2, href_interp, sprintf('%s - h2', upper(ctrl)), ...
+		save_level_figure(t_sim, h2, h2_ref, sprintf('%s - h2', upper(ctrl)), ...
 			sprintf('%s_h2.png', ctrl), outFolder);
 	end

@@ -8,7 +8,7 @@ function add_mpc(mdl, Kv, h_ss, A, g, Q_ss)
 	plant_c = ss(A_p, B_p, C_p, D_p);
 	plant_c = setmpcsignals(plant_c, 'MV', [1 2], 'MD', 3);
 
-	Ts_mpc  = 30;
+	Ts_mpc  = 1;
 	plant_d = c2d(plant_c, Ts_mpc, 'zoh');
 	p = 20;   % prediction horizon: 20 × 30 s = 600 s ≈ 1 tank time constant
 	m = 3;    % control horizon: 3 free moves per window
