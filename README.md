@@ -23,6 +23,10 @@ two_tank_system_sim/
 │   ├── model_w_cascade.slx
 │   ├── add_cascade.m
 │   └── run_cascade.m
+├── task_5/
+│   ├── mpc_model.slx
+│   ├── create_model_w_mpc.m
+│   └── run_mpc_model.m
 └── docs/
     ├── subject_predictive_control.pdf
     ├── task_1/
@@ -349,9 +353,197 @@ The plot shows $h_{ref}$ as a dashed line and $h_1$, $h_2$ as solid lines. The r
 
 ---
 
+## Task 5: Centralized MPC with Slave PI Loops
+
+### Objective
+
+Replace the independent master PI controllers from Task 4 with a centralized Model Predictive Controller (MPC). The MPC controls both tanks simultaneously while retaining the fast slave PI flow loops from the cascade structure.
+
+### Motivation for MPC
+
+In the cascade PI solution from Task 4, the two master controllers operated independently. However, the two-tank system is strongly coupled:
+
+- Changing $Q_{12}$ directly affects both tanks
+- Increasing outflow from Tank 1 increases inflow to Tank 2
+- The interaction between tanks can lead to suboptimal control when using separate master controllers
+
+A centralized MPC considers both tank levels simultaneously and computes coordinated control actions for:
+- $Q_{12,ref}$ — desired flow from Tank 1 to Tank 2
+- $Q_{out,ref}$ — desired outlet flow from Tank 2
+
+The MPC also allows explicit handling of actuator and flow constraints.
+
+### Simplified Plant Model
+
+The slave PI loops are much faster than the tank dynamics:
+- Slave loop settling time: approximately $10-30 \, [s]$
+- Tank time constant: approximately $650 \, [s]$
+
+Therefore, the slave loops are assumed ideal from the MPC perspective:
+
+$Q_{12} \approx Q_{12,ref}$
+
+$Q_{out} \approx Q_{out,ref}$
+
+Using the mass balance equations, the simplified linear plant becomes:
+
+$\frac{dh_1}{dt} = \frac{Q_{in} - Q_{12,ref}}{A}$
+
+$\frac{dh_2}{dt} = \frac{Q_{12,ref} - Q_{out,ref}}{A}$
+
+### State-Space Representation
+
+The plant is represented as a two-state, two-input linear system.
+
+#### States
+
+$\mathbf{x} = [h_1 \;\; h_2]^T$
+
+#### Manipulated Variables
+
+$\mathbf{u} = [Q_{12,ref} \;\; Q_{out,ref}]^T$
+
+#### Measured Disturbance
+
+$\mathbf{d} = [Q_{in}]$
+
+The measured disturbance $Q_{in}$ is included because the inflow is known and directly affects Tank 1 dynamics.
+
+The continuous-time state-space model is:
+
+$\dot{\mathbf{x}} = \mathbf{A}\mathbf{x} + \mathbf{B}\mathbf{u} + \mathbf{G}\mathbf{d}$
+
+With:
+
+$\mathbf{A} =
+\begin{bmatrix}
+0 & 0 \\
+0 & 0
+\end{bmatrix}$
+
+$\mathbf{B} =
+\begin{bmatrix}
+-\frac{1}{A} & 0 \\
+\frac{1}{A} & -\frac{1}{A}
+\end{bmatrix}$
+
+$\mathbf{G} =
+\begin{bmatrix}
+\frac{1}{A} \\
+0
+\end{bmatrix}$
+
+$\mathbf{C} =
+\begin{bmatrix}
+1 & 0 \\
+0 & 1
+\end{bmatrix}$
+
+The outputs are the tank levels $h_1$ and $h_2$.
+
+### Nominal Operating Point
+
+The MPC controller is designed around the steady-state operating point:
+
+| Parameter | Value |
+|-----------|-------|
+| $h_{1ss}$ | $0.816 \, [m]$ |
+| $h_{2ss}$ | $0.816 \, [m]$ |
+| $Q_{12,ss}$ | $0.01 \, [m^3/s]$ |
+| $Q_{out,ss}$ | $0.01 \, [m^3/s]$ |
+| $Q_{in,ss}$ | $0.01 \, [m^3/s]$ |
+
+The steady-state consistency condition is satisfied:
+
+$\mathbf{A}x_{ss} + \mathbf{B}u_{ss} + \mathbf{G}d_{ss} = 0$
+
+This condition is required by the MATLAB MPC Toolbox for correct prediction around the operating point.
+
+### Discretization
+
+The MPC requires a discrete-time plant model. The continuous system is discretized using zero-order hold:
+
+`c2d(plant_c, Ts_mpc, 'zoh')`
+
+Where:
+- `plant_c` = continuous-time model
+- `Ts_mpc` = MPC sampling time
+
+### MPC Configuration
+
+The MPC minimizes a cost function that balances:
+- Reference tracking accuracy
+- Smoothness of manipulated variable changes
+- Constraint satisfaction
+
+The controller uses:
+- Equal output weights for $h_1$ and $h_2$
+- Rate penalties on manipulated variables to prevent abrupt flow changes
+- Hard constraints on $Q_{12,ref}$ and $Q_{out,ref}$
+
+Because the system is symmetric, the controller produces nearly identical responses for both tanks.
+
+### Implementation
+
+- **Simulink Model**: `task_5/mpc_model.slx`
+- **Build Script**: `task_5/create_model_w_mpc.m`
+- **Run Script**: `task_5/run_mpc_model.m`
+
+### Test Scenario
+
+At $t = 500 \, [s]$, the reference level steps from:
+
+$h_{ref} = 0.816 \, [m]$
+
+to:
+
+$h_{ref} = 1.2 \cdot h_{ss} \approx 0.979 \, [m]$
+
+The same reference is applied to both tanks simultaneously.
+
+The MPC responds by:
+- Decreasing $Q_{12,ref}$ to reduce draining from Tank 1
+- Decreasing $Q_{out,ref}$ to retain water in Tank 2
+- Coordinating both flows to ensure smooth level tracking
+
+### Results
+
+### Results
+
+The MPC controller successfully tracks the reference step applied at
+$t = 500 \, [s]$, where both tank levels rise from the steady-state value
+$h_{ss} = 0.816 \, [m]$ to the new reference
+$h_{ref} \approx 0.979 \, [m]$. Both $h_1$ and $h_2$ follow nearly identical
+trajectories due to the symmetric system structure and equal MPC output
+weighting. The response is fast and well damped, with very small overshoot,
+no sustained oscillations, and zero steady-state error. Compared to the
+cascade PI controller from Task 4, the centralized MPC achieves significantly
+faster settling while coordinating both tanks simultaneously through optimal
+manipulation of $Q_{12,ref}$ and $Q_{out,ref}$. A small transient spike is
+visible at the beginning of the simulation due to initialization effects, but
+it disappears quickly and does not affect closed-loop stability.
+
+![MPC Control Results](docs/task_5/mpc_model.png "MPC + Cascade Slave PI — level response")
+![MPC Control Results](docs/task_5/mpc_model.png "MPC + Cascade Slave PI — level response")
+
+The plot shows:
+- $h_{ref}$ as a dashed line
+- $h_1$ and $h_2$ as solid lines
+
+Since the plant and controller are symmetric, both tanks follow nearly identical trajectories toward the new operating point.
+
+### Simulation Data Logged
+
+- $h_1$, $h_2$: tank levels
+- $h_{ref}$: reference level
+- $Q_{12,ref}$: MPC reference flow from Tank 1 to Tank 2
+- $Q_{out,ref}$: MPC reference outlet flow from Tank 2
+- MPC manipulated variable trajectories
+- Slave PI valve commands and actual valve positions
+
+---
 ## Next Steps (Future Tasks)
 
-- MPC regulation
 - Noise imitation on input
 - MPC and cascade PI final comparison
 
