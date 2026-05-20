@@ -7,8 +7,8 @@ function save_level_figure(t, h, href, figName, fileName, outFolder)
 	xlabel('Time (s)');
 	ylabel('Height (m)');
 	title(figName);
-	legend('Location', 'southeast');
-	ylim([0.8, 1]);
+	legend('Location', 'northeast');
+	ylim([0, 1]);
 	if ~exist(outFolder,'dir'), mkdir(outFolder); end
 	file = fullfile(outFolder, fileName);
 	exportgraphics(f, file, 'Resolution', 300);
@@ -59,11 +59,11 @@ for ci = 1:numel(controllers)
 		results.(ctrl).h1 = h1_sim;
 		results.(ctrl).h2 = h2_sim;
 		results.(ctrl).q_in = q_in;
-		try
+        try
 			close_system(mdl, 0);
 		catch
-		end
-		if ci==1
+        end
+        if ci==1
 			figure_in = figure('Name', 'Input Flow');
 			grid on;
 			plot(q_in(:,1), q_in(:,2));
