@@ -12,9 +12,9 @@ h1_data = simOut.h1;
 h2_data = simOut.h2;
 q12_data = simOut.Q12;
 q2_data = simOut.Q;
-close_system(model, 0);
+% close_system(model, 0);
 
-outFolder = fullfile(pwd,'..','docs');
+outFolder = fullfile(pwd,'..','docs/task_1');
 if ~exist(outFolder,'dir')    
 	mkdir(outFolder);
 end
