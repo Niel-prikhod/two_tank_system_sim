@@ -8,12 +8,12 @@ function add_mpc(mdl, Kv, h_ss, A, g, Q_ss)
 	plant_c = ss(A_p, B_p, C_p, D_p);
 	plant_c = setmpcsignals(plant_c, 'MV', [1 2], 'MD', 3);
 
-	Ts_mpc  = 1;
+	Ts_mpc  = 0.1;
 	plant_d = c2d(plant_c, Ts_mpc, 'zoh');
-	p = 20;   % prediction horizon: 20 × 30 s = 600 s ≈ 1 tank time constant
-	m = 3;    % control horizon: 3 free moves per window
+	p = 50;   % prediction horizon
+	m = 5;    % control horizon
 	mpcobj = mpc(plant_d, Ts_mpc, p, m);
-	mpcobj.Weights.OutputVariables          = [10,   10  ];  % h1, h2 tracking
+	mpcobj.Weights.OutputVariables          = [30,   30  ];  % h1, h2 tracking
 	mpcobj.Weights.ManipulatedVariables     = [0.01, 0.01];  % allow MVs to move freely
 	mpcobj.Weights.ManipulatedVariablesRate = [0.1,  0.1 ];  % penalise large MV jumps
 	mpcobj.MV(1).Min = 0;   mpcobj.MV(1).Max = Kv_lin;   % Q12_ref  ∈ [0, 0.02]

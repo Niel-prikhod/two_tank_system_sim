@@ -4,3 +4,4 @@ on_lec_model/
 .obsidian/
 *.mat
 *.pdf
+*/*.asv

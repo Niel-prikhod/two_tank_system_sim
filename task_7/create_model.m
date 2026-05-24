@@ -10,7 +10,7 @@ function mdl = create_model(controller)
 	%% Build model
 	mdl = [controller '_model'];
 	if bdIsLoaded(mdl), close_system(mdl, 0); end
-	new_system(mdl); open_system(mdl);
+	new_system(mdl); load_system(mdl);
 
 	% Blocks
 	add_block('simulink/Sources/From Workspace', ...
@@ -106,16 +106,21 @@ function mdl = create_model(controller)
 
 	% Autotune PI gains
 
-	Kv_lin  = Kv * sqrt(2 * g * h_ss);          % linearised gain ~0.02 m³/s
-	G_slave = tf(Kv_lin, [tau_v, 1]);            % 0.02 / (10s + 1)
+	Kv_lin  = Kv * sqrt(2 * g * h_ss);         
+	G_slave = tf(Kv_lin, [tau_v, 1]);   
 	C_slave = pidtune(G_slave, 'PI');
 	CL_slave  = feedback(C_slave * G_slave, 1);
 	Kp_s = C_slave.Kp;    Ki_s = C_slave.Ki;
 
-if strcmp(controller, 'pid')
-	[Kp_m, Ki_m] = tune_master(A, CL_slave);
-end
-
+    if strcmp(controller, 'pid')
+        % get from pid_tuner app
+        % Kp_m = -2.68899755613614;
+        % Ki_m = -0.0308168532465189;
+        [Kp_m, Ki_m] = tune_master(A, CL_slave);
+    end
+    % Kp_s = 561.017730861427;
+    % Ki_s = 132.195857915363;
+    
 	h1_ref = set_reference();
 	time_offset = 2000;
 	h2_ref = add_offset(h1_ref, time_offset);
@@ -190,8 +195,29 @@ end
 		add_mpc(mdl, Kv, h_ss, A, g, Q_ss);
 	elseif strcmp(controller, 'pid')
 		add_pid(mdl, Q_ss, Kp_m, Ki_m);
-	end
+    end
 
+	% more loggers
+	add_block('simulink/Sinks/To Workspace', [mdl '/Log_Q12ref']);
+	add_block('simulink/Sinks/To Workspace', [mdl '/Log_Qoutref']);
+	set_param([mdl '/Log_Q12ref'],  'VariableName', 'Q12ref_out',  'SaveFormat', 'Array');
+	set_param([mdl '/Log_Qoutref'], 'VariableName', 'Qoutref_out', 'SaveFormat', 'Array');
+
+	if contains(controller, 'mpc')
+		add_line(mdl, 'MVDemux/1', 'Log_Q12ref/1',  'autorouting', 'on');
+		add_line(mdl, 'MVDemux/2', 'Log_Qoutref/1', 'autorouting', 'on');
+	elseif contains(controller, 'pid')
+		add_line(mdl, 'MasterPI1/1', 'Log_Q12ref/1',  'autorouting', 'on');
+		add_line(mdl, 'MasterPI2/1', 'Log_Qoutref/1', 'autorouting', 'on');
+	end
+	add_block('simulink/Sinks/To Workspace', [mdl '/Log_Q12']);
+	add_block('simulink/Sinks/To Workspace', [mdl '/Log_Qout']);
+	set_param([mdl '/Log_Q12'],  'VariableName', 'Q12_out',  'SaveFormat', 'Array');
+	set_param([mdl '/Log_Qout'], 'VariableName', 'Qout_out', 'SaveFormat', 'Array');
+	add_line(mdl, 'FlowMeas1/1', 'Log_Q12/1',  'autorouting', 'on');
+	add_line(mdl, 'FlowMeas2/1', 'Log_Qout/1', 'autorouting', 'on');
+    set_param([mdl '/Log_Q12ref'], 'SampleTime', '0');
+    set_param([mdl '/Log_Qoutref'], 'SampleTime', '0');
+    Simulink.BlockDiagram.arrangeSystem(mdl);
 	save_system(mdl);
-	close_system(mdl);
 end
