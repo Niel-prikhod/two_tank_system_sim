@@ -589,12 +589,21 @@ the robustness and tracking performance of the PI cascade controller and the
 MPC-based controller under identical disturbance conditions.
 
 ### Results
-input_flow.png  mpc_h1.png  mpc_h2.png  pid_h1.png  pid_h2.png
+
+![Input flow with disturbance](docs/task_7/input_flow.png)
+Input flow was corrected to be more realistic, only a few control points were
+randomized, points inbetween were interpolated to make a smoother changes.
+
 
 ![Level in Tank 1, PID regulation](docs/task_7/pid_h1.png)
 ![Level in Tank 2, PID regulation](docs/task_7/pid_h2.png)
+![Flows, PID regulation](docs/task_7/pid_flows.png)
+![Valve positions, PID regulation](docs/task_7/pid_valves.png)
+
 ![Level in Tank 1, MPC regulation](docs/task_7/mpc_h1.png)
 ![Level in Tank 2, MPC regulation](docs/task_7/mpc_h2.png)
+![Flows, MPC regulation](docs/task_7/mpc_flows.png)
+![Valve positions, MPC regulation](docs/task_7/mpc_valves.png)
 
 Both control strategies successfully tracked the filling and emptying
 reference trajectories while maintaining stable operation under inflow
@@ -603,6 +612,9 @@ acceptable reference tracking with stable behaviour throughout the simulation.
 However, the MPC-based controller produced noticeably smoother responses and
 followed the reference trajectory more accurately, especially during the
 dynamic filling and emptying phases.
+
+Both controllers couldn't handle high spike in input flow in beginning (around 
+1000 s), which is seen in higher level during filling phase. 
 
 In previous tasks, the MPC controller used a sampling time of
 $30 \, [s]$, which limited its prediction accuracy and resulted in performance
