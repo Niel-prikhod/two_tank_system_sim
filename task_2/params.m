@@ -6,6 +6,7 @@ g   = 9.81;     % m/s²
 %% Steady-state operating point
 h_ss  = 0.816;          % m
 Q_ss  = 0.01;           % m³/s
+z_ss  = 0.5;
 
 %% Linearisation gain  k = a*sqrt(2g) / (2*sqrt(h_ss))
 k     = a * sqrt(2*g) / (2 * sqrt(h_ss));   % ~0.006128 m²/s
