@@ -607,22 +607,44 @@ randomized, points inbetween were interpolated to make a smoother changes.
 
 Both control strategies successfully tracked the filling and emptying
 reference trajectories while maintaining stable operation under inflow
-disturbances. The cascade PI controller handled the task well and achieved
-acceptable reference tracking with stable behaviour throughout the simulation.
-However, the MPC-based controller produced noticeably smoother responses and
-followed the reference trajectory more accurately, especially during the
-dynamic filling and emptying phases.
+disturbances. The cascade PI controller handled the task well, achieving
+acceptable reference tracking with stable behaviour throughout the
+simulation. The MPC-based controller produced noticeably smoother
+responses and followed the reference trajectory more accurately,
+particularly during the dynamic filling and emptying phases.
+Nevertheless, the predictive controller exhibits oscillating outputs at
+$t \approx 2500 \, [s]$, $t \approx 5000 \, [s]$, $t \approx 7000
+\, [s]$, and $t \approx 9000 \, [s]$. These oscillations fall into
+two distinct patterns.
 
-Both controllers couldn't handle high spike in input flow in beginning (around 
-1000 s), which is seen in higher level during filling phase. 
+At $t \approx 5000 \, [s]$ and $t \approx 7000 \, [s]$, oscillations
+occur with reference level changes. This behaviour could be
+mitigated by increasing the prediction horizon to extend the
+controller's look-ahead, or by introducing a penalty on the output
+variable rate of change to discourage aggressive corrections between
+consecutive samples.
 
-In previous tasks, the MPC controller used a sampling time of
-$30 \, [s]$, which limited its prediction accuracy and resulted in performance
-comparable to the cascade PI controller. After reducing the MPC sampling time
-to $1 \, [s]$, the controller was able to react significantly faster to both
-reference changes and disturbances. As a result, the MPC output closely
-matches the reference trajectory while maintaining smooth control action and
-minimal oscillations. The comparison demonstrates the importance of sampling
-time selection in predictive control and confirms the superior tracking
-capability of the MPC controller when configured with sufficiently fast
-sampling.
+At $t \approx 2500 \, [s]$ and $t \approx 9000 \, [s]$, oscillations
+arise during phases where $Q_{in}$ is low and nearly constant while
+the reference ramps actively. The system operates far below the
+nominal linearisation point ($h_{ss} = 0.816 \, [m]$), where the
+nonlinear valve characteristic produces significantly less flow than
+the internal MPC model predicts for the same valve command. The
+resulting model mismatch causes repeated over- and under-corrections
+at each $0.1 \, [s]$ sample step. This could be addressed by gain
+scheduling --- re-linearising the MPC model at multiple operating
+points --- or by increasing the output variable weights to make the
+controller more tolerant of small prediction errors rather than
+attempting aggressive corrections that the real plant cannot match.
+
+In previous tasks, the MPC controller operated with a sampling time of
+$30 \, [s]$, which limited its prediction accuracy and resulted in
+performance comparable to the cascade PI controller. After reducing the
+sampling time to $1 \, [s]$ (and subsequently to $0.1 \, [s]$), the
+controller was able to react significantly faster to both reference
+changes and disturbances. As a result, the MPC output closely matches
+the reference trajectory while maintaining smooth control action and
+minimal oscillations. The comparison demonstrates the importance of
+sampling time selection in predictive control and confirms the superior
+tracking capability of the MPC controller when configured with a
+sufficiently fast sampling rate.
